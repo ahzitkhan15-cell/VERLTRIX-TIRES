@@ -86,8 +86,9 @@ class FixTests(unittest.TestCase):
         _, report, stats = ff.fix(FIX_LIST, {}, "USD")
         self.assertEqual(stats["unmatched"], 3)
         self.assertEqual(report[3]["status"], "PASS")
-        _, report, _ = ff.fix(FIX_LIST, {}, "USD", require_all=True)
+        _, report, stats = ff.fix(FIX_LIST, {}, "USD", require_all=True)
         self.assertEqual(report[3]["status"], "FAIL")
+        self.assertEqual(stats["unmatched"], 4)  # the passing row needs a source too
 
     def test_template(self):
         """The template lists only failing rows and needed columns."""

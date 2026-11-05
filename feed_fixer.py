@@ -230,7 +230,7 @@ def fix(fix_rows: list[dict], sources: dict[str, dict[str, str]], currency: str,
     for row in fix_rows:
         stats["rows"] += 1
         src = sources.get(row["record_id"].strip())
-        if src is None and failing_fields(row):
+        if src is None and (require_all or failing_fields(row)):
             stats["unmatched"] += 1
         out, problems, filled = _fix_row(row, src or {}, currency, require_all)
         stats["filled"] += filled
