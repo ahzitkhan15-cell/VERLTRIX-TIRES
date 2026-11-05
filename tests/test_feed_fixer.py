@@ -30,6 +30,9 @@ class NormalizeTests(unittest.TestCase):
         self.assertIsNotNone(ff.normalize_price("0")[1])
         self.assertIsNotNone(ff.normalize_price("call us")[1])
         self.assertEqual(ff.normalize_price("")[1], "missing")
+        self.assertIsNotNone(ff.normalize_price("12,34")[1])
+        self.assertIsNotNone(ff.normalize_price("1,2,3")[1])
+        self.assertEqual(ff.normalize_price("12,345,678.9")[0], "12345678.90 USD")
 
     def test_availability(self):
         """Stock words and counts map to allowed values."""
@@ -43,6 +46,18 @@ class NormalizeTests(unittest.TestCase):
         """Only absolute http(s) URLs pass."""
         self.assertIsNone(ff.normalize_url("https://x.com/a.jpg")[1])
         self.assertIsNotNone(ff.normalize_url("x.com/a.jpg")[1])
+        for bad in ("https://@", "https://example.com:abc/path", "https://[not-an-ip]/x"):
+            self.assertIsNotNone(ff.normalize_url(bad)[1], bad)
+        self.assertIsNone(ff.normalize_url("https://shop.example.com:8443/p/1")[1])
+
+    def test_empty_source_file(self):
+        """A source with headers but no rows loads as zero rows instead of failing."""
+        with tempfile.TemporaryDirectory() as d:
+            src = Path(d) / "empty.csv"
+            src.write_text("record_id,price\n", encoding="utf-8")
+            merged, notes = ff.load_sources([src])
+        self.assertEqual(merged, {})
+        self.assertIn("0 rows", notes[0])
 
 
 class FixTests(unittest.TestCase):

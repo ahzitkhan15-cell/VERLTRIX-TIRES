@@ -5,7 +5,9 @@ Takes the feed fix list (record_id,title,status,failing_fields,what_is_needed)
 plus one or more source files that hold the missing values, merges them by
 record_id, and writes:
 
-  * a fixed feed:   record_id,title,price,availability,image_link,link
+  * a feed update:  record_id,title,price,availability,image_link,link
+    (only values supplied by the sources; a blank cell means "not changed by
+    this run, keep the value already in the live feed")
   * a new fix list in the same format as the input, listing what is still wrong
 
 Usage:
@@ -27,6 +29,7 @@ import csv
 import re
 import sys
 from pathlib import Path
+from urllib.parse import urlsplit
 
 FIELDS = ["price", "availability", "image_link", "link"]
 
@@ -57,7 +60,9 @@ AVAILABILITY_ALIASES = {
 }
 
 DEFAULT_CURRENCY = "USD"
-PRICE_RE = re.compile(r"^\s*\$?\s*([0-9][0-9,]*(?:\.[0-9]{1,2})?)\s*([A-Za-z]{3})?\s*$")
+# Commas are only allowed as thousands separators (1,049.00), so 12,34 is rejected.
+PRICE_RE = re.compile(r"^\s*\$?\s*((?:[0-9]{1,3}(?:,[0-9]{3})+|[0-9]+)(?:\.[0-9]{1,2})?)"
+                      r"\s*([A-Za-z]{3})?\s*$")
 URL_RE = re.compile(r"^https?://[^\s/$.?#][^\s]*$", re.IGNORECASE)
 
 
@@ -99,9 +104,19 @@ def normalize_url(raw: str):
     raw = (raw or "").strip()
     if not raw:
         return "", "missing"
-    if not URL_RE.match(raw):
+    if not URL_RE.match(raw) or not _has_valid_authority(raw):
         return raw, f"not a valid http(s) URL '{raw}'"
     return raw, None
+
+
+def _has_valid_authority(url: str) -> bool:
+    """True if the URL has a host name and, if given, a numeric port."""
+    try:
+        parts = urlsplit(url)
+        _ = parts.port  # raises ValueError for a non-numeric or out-of-range port
+    except ValueError:  # also covers malformed IPv6 literals like [not-an-ip]
+        return False
+    return bool(parts.hostname)
 
 
 def normalize(field: str, raw: str, currency: str):
@@ -118,8 +133,15 @@ def normalize(field: str, raw: str, currency: str):
 # --------------------------------------------------------------------------- #
 def read_csv(path: Path) -> list[dict]:
     """Read a CSV (BOM-tolerant) into a list of dicts."""
+    return read_csv_with_header(path)[1]
+
+
+def read_csv_with_header(path: Path) -> tuple[list[str], list[dict]]:
+    """Read a CSV, returning its header even when it has no data rows."""
     with open(path, newline="", encoding="utf-8-sig") as f:
-        return list(csv.DictReader(f))
+        reader = csv.DictReader(f)
+        rows = list(reader)
+        return list(reader.fieldnames or []), rows
 
 
 def write_csv(path: Path, header: list[str], rows: list[dict]) -> None:
@@ -152,8 +174,8 @@ def load_sources(paths: list[Path]) -> tuple[dict[str, dict[str, str]], list[str
     merged: dict[str, dict[str, str]] = {}
     notes = []
     for p in paths:
-        rows = read_csv(p)
-        cols = resolve_columns(list(rows[0].keys()) if rows else [], p)
+        header, rows = read_csv_with_header(p)
+        cols = resolve_columns(header, p)
         used = [c for c in FIELDS if c in cols]
         notes.append(f"{p}: {len(rows)} rows, fields {', '.join(used)}")
         for row in rows:
