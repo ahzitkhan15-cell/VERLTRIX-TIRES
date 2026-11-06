@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import NewItemDialog from './components/NewItemDialog.jsx';
 
 const API_STATES = {
   checking: { label: 'Connecting to API', tone: 'pending' },
@@ -8,27 +9,38 @@ const API_STATES = {
 
 const COLUMNS = ['Item', 'SKU', 'Category', 'On hand', 'Status'];
 
+function statusTone(status) {
+  if (status === 'In stock') return 'ok';
+  if (status === 'Low stock') return 'warn';
+  return 'muted';
+}
+
 export default function App() {
   const [apiState, setApiState] = useState('checking');
   const [items, setItems] = useState([]);
+  const [dialogOpen, setDialogOpen] = useState(false);
+
+  async function loadInventory() {
+    const response = await fetch('/api/inventory');
+    if (!response.ok) {
+      throw new Error('API request failed');
+    }
+    const payload = await response.json();
+    setItems(Array.isArray(payload.items) ? payload.items : []);
+  }
 
   useEffect(() => {
     let cancelled = false;
 
     async function load() {
       try {
-        const [health, inventory] = await Promise.all([
-          fetch('/api/health'),
-          fetch('/api/inventory'),
-        ]);
+        const [health] = await Promise.all([fetch('/api/health'), loadInventory()]);
 
-        if (!health.ok || !inventory.ok) {
+        if (!health.ok) {
           throw new Error('API request failed');
         }
 
-        const payload = await inventory.json();
         if (!cancelled) {
-          setItems(Array.isArray(payload.items) ? payload.items : []);
           setApiState('online');
         }
       } catch {
@@ -43,6 +55,16 @@ export default function App() {
       cancelled = true;
     };
   }, []);
+
+  async function handleCreated() {
+    setDialogOpen(false);
+    try {
+      await loadInventory();
+      setApiState('online');
+    } catch {
+      setApiState('offline');
+    }
+  }
 
   const status = API_STATES[apiState];
 
@@ -83,7 +105,18 @@ export default function App() {
                 Stock records from the inventory API appear here.
               </p>
             </div>
-            <span className="count">{items.length} items</span>
+            <div className="panel__actions">
+              <span className="count">
+                {items.length} {items.length === 1 ? 'item' : 'items'}
+              </span>
+              <button
+                type="button"
+                className="btn btn--primary"
+                onClick={() => setDialogOpen(true)}
+              >
+                Add item
+              </button>
+            </div>
           </div>
 
           <div className="table-wrap">
@@ -127,7 +160,11 @@ export default function App() {
                       <td className="mono">{item.sku}</td>
                       <td>{item.category}</td>
                       <td>{item.quantity}</td>
-                      <td>{item.status}</td>
+                      <td>
+                        <span className={`pill pill--${statusTone(item.status)}`}>
+                          {item.status}
+                        </span>
+                      </td>
                     </tr>
                   ))
                 )}
@@ -160,6 +197,12 @@ export default function App() {
           </article>
         </section>
       </main>
+
+      <NewItemDialog
+        open={dialogOpen}
+        onClose={() => setDialogOpen(false)}
+        onCreated={handleCreated}
+      />
 
       <footer className="footer">
         <span>VERLTRIX TIRES &middot; inventory starter</span>

@@ -68,7 +68,10 @@ When using the development target with a bind mount, keep the container's
 | Method | Path | Description |
 | --- | --- | --- |
 | `GET` | `/api/health` | Service health and uptime |
-| `GET` | `/api/inventory` | List inventory items (empty until the data layer lands) |
+| `GET` | `/api/inventory` | List inventory items |
+| `POST` | `/api/inventory` | Create an item (`name`, `sku`, `category`, `quantity`) |
+
+Items are kept in memory for now, so they reset when the API restarts.
 
 ## Environment
 
