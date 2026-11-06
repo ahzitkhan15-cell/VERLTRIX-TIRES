@@ -35,7 +35,10 @@ python3 feed_fixer.py fix data/feed_fix_list.csv prices.csv images.csv \
 - `image_link` and `link` must be `http(s)://` URLs with a host name.
 - By default a row is checked only on the fields it originally failed. Use `--require-all`
   to require every field on every row. A value a source *does* supply is always validated,
-  even for a field that passed before, so a bad value never ends up in the feed update.
+  even for a field that passed before, so a bad value never ends up in the feed update: the
+  cell is left blank (keep the live value) and the row is reported as failing.
+- A failing field this tool cannot fill (`price`, `availability`, `image_link`, `link` are the
+  only ones it knows) keeps the row failing instead of being silently dropped from the report.
 
 `feed_fixed.csv` is an update sheet, not a complete feed: it holds the values your source
 files supplied. A blank cell means "not changed by this run", so keep the value already in
@@ -43,6 +46,7 @@ your live feed (the fix list doesn't contain those values). Upload it as a suppl
 feed, or use `--require-all` with complete source files to get a full feed.
 
 The report has the same columns as the input fix list, so you can run it again on the remaining rows.
+A fix list with no data rows left is valid: the tool writes empty outputs and exits 0.
 The command exits with code 1 while any row still fails.
 
 ### Tests
