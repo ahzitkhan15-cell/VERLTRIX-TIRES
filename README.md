@@ -54,3 +54,7 @@ The command exits with code 1 while any row still fails.
 ```bash
 python3 -m unittest discover -s tests
 ```
+
+`tests/test_feed_fixer.py` covers the units. `tests/test_integration.py` runs the script as a
+subprocess against the sample fix list and source files in `tests/fixtures/`, checking exit
+codes, stdout and the CSV files it writes.
