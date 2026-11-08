@@ -1,0 +1,7 @@
+record_id,title,status,failing_fields,what_is_needed
+VTX-100,ARDENT SPORT RX6 225/45R18,FAIL,price; availability,price: Supply a selling price for this row
+VTX-101,ARDENT UNMIX AU01 215/60R16,FAIL,image_link; link,image_link: Supply an image URL for this row
+VTX-102,"ARDENT PROMIX, AP01 ""225/45R18""",FAIL,price; availability; image_link; link,
+VTX-103,ARDENT SPORT RX6 235/40R18,PASS,,
+VTX-104,TIRELINK 245/40R19,FAIL,price; gtin,gtin: Supply a GTIN for this row
+  VTX-105  ,ARDENT 205/55R16 padded id,FAIL,availability,availability: Supply a stock/availability status for this row

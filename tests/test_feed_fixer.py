@@ -97,6 +97,25 @@ class FixTests(unittest.TestCase):
                                   "image_link", "link"])
         self.assertEqual([r["record_id"] for r in rows], ["VTX-1", "VTX-2", "TL-3"])
 
+    def test_invalid_value_stays_out_of_feed(self):
+        """A bad supplied value is reported and never written to the feed update."""
+        sources = {"TL-3": {"image_link": "https://cdn/x.jpg", "link": "not a url"}}
+        feed, report, _ = ff.fix(FIX_LIST, sources, "USD")
+        row = next(r for r in feed if r["record_id"] == "TL-3")
+        self.assertNotIn("link", row)  # blank cell: keep the live feed value
+        self.assertEqual(row["image_link"], "https://cdn/x.jpg")
+        self.assertEqual(next(r for r in report
+                              if r["record_id"] == "TL-3")["status"], "FAIL")
+
+    def test_unknown_failing_field_is_not_a_pass(self):
+        """A failing field the tool cannot fill keeps the row failing."""
+        rows = [{"record_id": "X1", "title": "T", "status": "FAIL",
+                 "failing_fields": "price; gtin", "what_is_needed": ""}]
+        _, report, stats = ff.fix(rows, {"X1": {"price": "10"}}, "USD")
+        self.assertEqual(report[0]["status"], "FAIL")
+        self.assertIn("gtin", report[0]["failing_fields"])
+        self.assertEqual(stats["fail"], 1)
+
 
 class CliTests(unittest.TestCase):
     """The command-line interface end to end."""
@@ -122,6 +141,27 @@ class CliTests(unittest.TestCase):
             self.assertEqual(feed["VTX-1"]["price"], "12.50 USD")
             self.assertEqual(feed["VTX-2"]["availability"], "out_of_stock")
             self.assertEqual(feed["TL-3"]["link"], "https://shop/3")
+
+    def test_empty_fix_list(self):
+        """A fix list with no data rows is valid and produces empty output."""
+        with tempfile.TemporaryDirectory() as d:
+            d = Path(d)
+            fix_list = d / "fix.csv"
+            fix_list.write_text(
+                "record_id,title,status,failing_fields,what_is_needed\n", encoding="utf-8")
+            fill = d / "to_fill.csv"
+            self.assertEqual(ff.main(["template", str(fix_list), "-o", str(fill)]), 0)
+            self.assertEqual(fill.read_text(encoding="utf-8").strip(),
+                             "record_id,title")
+
+            src = d / "src.csv"
+            src.write_text("record_id,price\nVTX-1,10\n", encoding="utf-8")
+            out_feed, out_rep = d / "feed.csv", d / "rep.csv"
+            rc = ff.main(["fix", str(fix_list), str(src),
+                          "--feed-out", str(out_feed), "--report-out", str(out_rep)])
+            self.assertEqual(rc, 0)
+            self.assertEqual(len(out_feed.read_text(encoding="utf-8").splitlines()), 1)
+            self.assertEqual(len(out_rep.read_text(encoding="utf-8").splitlines()), 1)
 
 
 if __name__ == "__main__":

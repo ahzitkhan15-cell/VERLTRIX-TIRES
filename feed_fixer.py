@@ -204,15 +204,22 @@ def _fix_row(row: dict, src: dict[str, str], currency: str, require_all: bool):
     check = FIELDS if require_all else failed
     out = {"record_id": row["record_id"].strip(), "title": row.get("title", "")}
     problems, filled = [], 0
+    for field in failed:
+        if field not in FIELDS:
+            # A field this tool cannot fill must not be reported as fixed.
+            problems.append((field, f"unknown field '{field}' "
+                                    f"(this tool fills {', '.join(FIELDS)})"))
     for field in FIELDS:
         raw = src.get(field, "")
         if field not in check and not raw:
             continue  # passed upstream, nothing supplied, leave untouched
         value, err = normalize(field, raw, currency)
-        out[field] = value
         if err is None:
+            out[field] = value
             filled += field in failed
         elif field in check or raw:
+            # Never write an unusable value into the feed update: leaving the
+            # cell blank keeps whatever the live feed already holds.
             problems.append((field, NEEDED_MSG[field] if err == "missing" else err))
     return out, problems, filled
 
@@ -302,15 +309,21 @@ def run_fix(args: argparse.Namespace, fix_rows: list[dict]) -> int:
 def main(argv: list[str] | None = None) -> int:
     """Entry point for the command line."""
     args = build_parser().parse_args(argv)
-    fix_rows = read_csv(args.fix_list)
-    missing = {"record_id", "failing_fields"} - set(fix_rows[0].keys() if fix_rows else [])
+    # Validate against the header, so a fix list whose rows are all fixed
+    # (header only, no data rows) still works instead of reporting bad columns.
+    header, fix_rows = read_csv_with_header(args.fix_list)
+    missing = {"record_id", "failing_fields"} - {h.strip() for h in header if h}
     if missing:
         raise SystemExit(f"{args.fix_list}: missing columns {sorted(missing)}")
 
     if args.cmd == "template":
-        header, rows = make_template(fix_rows)
-        write_csv(args.out, header, rows)
-        print(f"Wrote {len(rows)} rows needing {', '.join(header[2:])} to {args.out}")
+        out_header, rows = make_template(fix_rows)
+        write_csv(args.out, out_header, rows)
+        if rows:
+            print(f"Wrote {len(rows)} rows needing "
+                  f"{', '.join(out_header[2:])} to {args.out}")
+        else:
+            print(f"No rows need filling; wrote an empty sheet to {args.out}")
         return 0
     return run_fix(args, fix_rows)
 

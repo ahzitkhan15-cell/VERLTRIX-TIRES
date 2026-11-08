@@ -4,7 +4,18 @@ INVENTORY
 ## Feed fixer
 
 `feed_fixer.py` fills the gaps reported in the feed fix list and re-validates the feed.
-It needs only Python 3.9+ (standard library).
+
+### Requirements
+
+- Python 3.9+ only — there is nothing to install, the tool uses the standard library.
+- Run the commands from the repository root, so the paths below resolve as shown.
+
+Check that the tool runs and list its options:
+
+```bash
+python3 feed_fixer.py --help
+python3 feed_fixer.py fix --help
+```
 
 `data/feed_fix_list.csv` is the current fix list: 4,027 rows, 4,005 failing.
 - 3,938 rows need **price** and **availability**
@@ -35,7 +46,10 @@ python3 feed_fixer.py fix data/feed_fix_list.csv prices.csv images.csv \
 - `image_link` and `link` must be `http(s)://` URLs with a host name.
 - By default a row is checked only on the fields it originally failed. Use `--require-all`
   to require every field on every row. A value a source *does* supply is always validated,
-  even for a field that passed before, so a bad value never ends up in the feed update.
+  even for a field that passed before, so a bad value never ends up in the feed update: the
+  cell is left blank (keep the live value) and the row is reported as failing.
+- A failing field this tool cannot fill (`price`, `availability`, `image_link`, `link` are the
+  only ones it knows) keeps the row failing instead of being silently dropped from the report.
 
 `feed_fixed.csv` is an update sheet, not a complete feed: it holds the values your source
 files supplied. A blank cell means "not changed by this run", so keep the value already in
@@ -43,10 +57,48 @@ your live feed (the fix list doesn't contain those values). Upload it as a suppl
 feed, or use `--require-all` with complete source files to get a full feed.
 
 The report has the same columns as the input fix list, so you can run it again on the remaining rows.
-The command exits with code 1 while any row still fails.
+A fix list with no data rows left is valid: the tool writes empty outputs and exits 0.
+Missing output folders are created for you.
 
-### Tests
+### Options
+
+| Option | Command | Meaning |
+| --- | --- | --- |
+| `-o`, `--out PATH` | `template` | Where to write the fill-in sheet (default `out/to_fill.csv`). |
+| `--feed-out PATH` | `fix` | Feed update file (default `out/feed_fixed.csv`). |
+| `--report-out PATH` | `fix` | Remaining-rows report (default `out/feed_fix_list_remaining.csv`). |
+| `--currency CODE` | `fix` | Currency for prices without one (default `USD`). |
+| `--require-all` | `fix` | Require every field on every row, not just the ones that failed. |
+
+Exit codes: `0` when every row passes, `1` when any row still fails, so the command can gate
+a feed upload in a script or CI job.
+
+## Tests
+
+The suite needs only Python 3.9+ (no packages), writes to temporary folders, and never
+modifies `data/feed_fix_list.csv`.
 
 ```bash
-python3 -m unittest discover -s tests
+# Everything: unit tests and integration tests
+python3 -m unittest discover -s tests -v
+
+# Only the integration tests
+python3 -m unittest discover -s tests -p "test_integration.py" -v
+
+# A single integration test class, or a single test
+python3 -m unittest tests.test_integration.FixIntegrationTests -v
+python3 -m unittest tests.test_integration.TemplateTests.test_template_from_sample -v
 ```
+
+`tests/test_feed_fixer.py` — unit tests for price, availability and URL normalisation, for
+merging sources into the fix list, and for the fill-in sheet.
+
+`tests/test_integration.py` — runs `python3 feed_fixer.py` in a subprocess against the sample
+files in `tests/fixtures/` (`sample_fix_list.csv`, `sources/prices.csv`,
+`sources/images.csv`) and checks the real result: exit codes, stdout, and the feed and report
+CSVs written to disk. It covers column aliases, quoted titles containing commas, padded
+record ids, unknown failing fields, unusable values, source precedence, `--require-all`,
+re-running on the previous report, default output paths, and the error cases (missing fix
+list, missing columns, unusable source file).
+
+Both files also run in CI (`.github/workflows/pylint.yml`, Python 3.11-3.13) after Pylint.
