@@ -4,7 +4,18 @@ INVENTORY
 ## Feed fixer
 
 `feed_fixer.py` fills the gaps reported in the feed fix list and re-validates the feed.
-It needs only Python 3.9+ (standard library).
+
+### Requirements
+
+- Python 3.9+ only — there is nothing to install, the tool uses the standard library.
+- Run the commands from the repository root, so the paths below resolve as shown.
+
+Check that the tool runs and list its options:
+
+```bash
+python3 feed_fixer.py --help
+python3 feed_fixer.py fix --help
+```
 
 `data/feed_fix_list.csv` is the current fix list: 4,027 rows, 4,005 failing.
 - 3,938 rows need **price** and **availability**
@@ -47,14 +58,47 @@ feed, or use `--require-all` with complete source files to get a full feed.
 
 The report has the same columns as the input fix list, so you can run it again on the remaining rows.
 A fix list with no data rows left is valid: the tool writes empty outputs and exits 0.
-The command exits with code 1 while any row still fails.
+Missing output folders are created for you.
 
-### Tests
+### Options
+
+| Option | Command | Meaning |
+| --- | --- | --- |
+| `-o`, `--out PATH` | `template` | Where to write the fill-in sheet (default `out/to_fill.csv`). |
+| `--feed-out PATH` | `fix` | Feed update file (default `out/feed_fixed.csv`). |
+| `--report-out PATH` | `fix` | Remaining-rows report (default `out/feed_fix_list_remaining.csv`). |
+| `--currency CODE` | `fix` | Currency for prices without one (default `USD`). |
+| `--require-all` | `fix` | Require every field on every row, not just the ones that failed. |
+
+Exit codes: `0` when every row passes, `1` when any row still fails, so the command can gate
+a feed upload in a script or CI job.
+
+## Tests
+
+The suite needs only Python 3.9+ (no packages), writes to temporary folders, and never
+modifies `data/feed_fix_list.csv`.
 
 ```bash
-python3 -m unittest discover -s tests
+# Everything: unit tests and integration tests
+python3 -m unittest discover -s tests -v
+
+# Only the integration tests
+python3 -m unittest discover -s tests -p "test_integration.py" -v
+
+# A single integration test class, or a single test
+python3 -m unittest tests.test_integration.FixIntegrationTests -v
+python3 -m unittest tests.test_integration.TemplateTests.test_template_from_sample -v
 ```
 
-`tests/test_feed_fixer.py` covers the units. `tests/test_integration.py` runs the script as a
-subprocess against the sample fix list and source files in `tests/fixtures/`, checking exit
-codes, stdout and the CSV files it writes.
+`tests/test_feed_fixer.py` — unit tests for price, availability and URL normalisation, for
+merging sources into the fix list, and for the fill-in sheet.
+
+`tests/test_integration.py` — runs `python3 feed_fixer.py` in a subprocess against the sample
+files in `tests/fixtures/` (`sample_fix_list.csv`, `sources/prices.csv`,
+`sources/images.csv`) and checks the real result: exit codes, stdout, and the feed and report
+CSVs written to disk. It covers column aliases, quoted titles containing commas, padded
+record ids, unknown failing fields, unusable values, source precedence, `--require-all`,
+re-running on the previous report, default output paths, and the error cases (missing fix
+list, missing columns, unusable source file).
+
+Both files also run in CI (`.github/workflows/pylint.yml`, Python 3.11-3.13) after Pylint.
