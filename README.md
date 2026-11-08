@@ -15,10 +15,13 @@ API in one npm-workspace repository.
 │       ├── App.jsx         Inventory shell (list + API status)
 │       └── styles.css
 ├── server/                 Node.js API (Express)
-│   └── src/
-│       ├── index.js        Server entry point
-│       └── routes/
-│           └── inventory.js  Inventory endpoints
+│   ├── src/
+│   │   ├── app.js          Express app factory (testable, one store per instance)
+│   │   ├── index.js        Server entry point
+│   │   └── routes/
+│   │       └── inventory.js  Inventory endpoints
+│   └── test/
+│       └── inventory.test.js API tests (node:test)
 ├── Dockerfile              `development` and `production` targets
 ├── package.json            Workspaces and root scripts
 └── package-lock.json
@@ -44,6 +47,22 @@ Other scripts:
 | `npm run dev:api` | Express API only (watches for changes) |
 | `npm run build` | Build the client into `client/dist` |
 | `npm start` | Run the API; it also serves `client/dist` when present |
+| `npm test` | Run the API tests with Node's built-in test runner |
+
+## Tests
+
+The API tests use Node's built-in test runner (`node:test`), with no extra
+dependencies. Each test starts the real Express app via `createApp()` on a random
+port and talks to it over HTTP, so every test gets a clean in-memory store.
+
+```bash
+npm test                                  # all API tests
+npm --workspace server test -- --watch    # re-run on change
+```
+
+`server/test/inventory.test.js` covers creating items, listing them, derived
+stock status, input trimming, and the validation failures (missing/blank name or
+SKU, negative or non-numeric quantity, duplicate SKU).
 
 ## Docker
 

@@ -16,7 +16,8 @@
     "dev:api": "npm --workspace server run dev",
     "dev:web": "npm --workspace client run dev",
     "build": "npm --workspace client run build",
-    "start": "npm --workspace server start"
+    "start": "npm --workspace server start",
+    "test": "npm --workspace server test"
   },
   "devDependencies": {
     "concurrently": "^9.2.1"
