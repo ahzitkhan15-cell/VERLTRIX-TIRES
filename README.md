@@ -1,5 +1,112 @@
-# VERLTRIX-TIRES
-INVENTORY
+# VERLTRIX TIRES
+
+This repository holds two things:
+
+- **Inventory app** — a React client and a Node.js (Express) API in one npm workspace.
+- **Feed fixer** — a Python command-line tool that fills the gaps in the product feed.
+
+## Structure
+
+```
+.
+├── client/                 React app (Vite)
+│   ├── index.html
+│   ├── vite.config.js      Dev server + `/api` proxy to the Express server
+│   └── src/
+│       ├── main.jsx
+│       ├── App.jsx         Inventory shell (list + API status)
+│       └── styles.css
+├── server/                 Node.js API (Express)
+│   ├── src/
+│   │   ├── app.js          Express app factory (testable, one store per instance)
+│   │   ├── index.js        Server entry point
+│   │   └── routes/
+│   │       └── inventory.js  Inventory endpoints
+│   └── test/
+│       └── inventory.test.js API tests (node:test)
+├── feed_fixer.py           Python CLI: fills gaps in the feed fix list
+├── data/feed_fix_list.csv  The feed fix list the tool works on
+├── tests/                  Feed fixer tests (unittest)
+├── Dockerfile              `development` and `production` targets
+├── package.json            Workspaces and root scripts
+└── package-lock.json
+```
+
+## Inventory app
+
+### Local development
+
+Requires Node.js 20.19+ or 22.12+, the range Vite 7 supports.
+
+```bash
+npm install
+npm run dev
+```
+
+- Client: http://localhost:5173
+- API: http://localhost:3001 (the client proxies `/api` here)
+
+Other scripts:
+
+| Command | What it does |
+| --- | --- |
+| `npm run dev:web` | Vite client only |
+| `npm run dev:api` | Express API only (watches for changes) |
+| `npm run build` | Build the client into `client/dist` |
+| `npm start` | Run the API; it also serves `client/dist` when present |
+| `npm test` | Run the API tests with Node's built-in test runner |
+
+### Tests
+
+The API tests use Node's built-in test runner (`node:test`), with no extra
+dependencies. Each test starts the real Express app via `createApp()` on a random
+port and talks to it over HTTP, so every test gets a clean in-memory store.
+
+```bash
+npm test                                  # all API tests
+npm --workspace server test -- --watch    # re-run on change
+```
+
+`server/test/inventory.test.js` covers creating items, listing them, derived
+stock status, input trimming, and the validation failures (missing/blank name or
+SKU, negative or non-numeric quantity, duplicate SKU).
+
+### Docker
+
+The Dockerfile has two targets.
+
+```bash
+# Development container with both dev servers (ports 5173 and 3001)
+docker build --target development -t verltrix-inventory:dev .
+docker run --rm -p 3000:5173 -p 3001:3001 \
+  -v "$PWD:/app" -v verltrix_inventory_node_modules:/app/node_modules \
+  verltrix-inventory:dev
+
+# Production image: Express serves the API and the built client on port 3000
+docker build --target production -t verltrix-inventory .
+docker run --rm -p 3000:3000 verltrix-inventory
+```
+
+The bind mount would otherwise hide the dependencies installed in the image, so
+the command above also mounts a named volume over `/app/node_modules` to keep
+them. Rebuild the image after changing dependencies.
+
+### API
+
+| Method | Path | Description |
+| --- | --- | --- |
+| `GET` | `/api/health` | Service health and uptime |
+| `GET` | `/api/inventory` | List inventory items |
+| `POST` | `/api/inventory` | Create an item (`name`, `sku`, `category`, `quantity`) |
+
+Items are kept in memory for now, so they reset when the API restarts.
+
+### Environment
+
+The app runs with no external credentials. Optional variables:
+
+- `PORT` — API port (default `3001`)
+- `API_PROXY_TARGET` — API URL used by the Vite dev proxy (default `http://127.0.0.1:3001`)
 
 ## Feed fixer
 
@@ -73,7 +180,7 @@ Missing output folders are created for you.
 Exit codes: `0` when every row passes, `1` when any row still fails, so the command can gate
 a feed upload in a script or CI job.
 
-## Tests
+### Tests
 
 The suite needs only Python 3.9+ (no packages), writes to temporary folders, and never
 modifies `data/feed_fix_list.csv`.
