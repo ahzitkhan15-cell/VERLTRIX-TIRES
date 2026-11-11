@@ -111,6 +111,35 @@ test('POST /api/inventory floors fractional quantities', async (t) => {
   assert.equal(body.item.quantity, 3);
 });
 
+test('POST /api/inventory reports a floored fraction as out of stock', async (t) => {
+  const baseUrl = await startServer(t);
+
+  const { status, body } = await postItem(baseUrl, {
+    name: 'Nokian Hakkapeliitta',
+    sku: 'NH-205-55-16',
+    quantity: 0.5,
+  });
+
+  assert.equal(status, 201);
+  assert.equal(body.item.quantity, 0);
+  assert.equal(body.item.status, 'Out of stock');
+});
+
+test('POST /api/inventory rejects quantities that are not numbers', async (t) => {
+  const baseUrl = await startServer(t);
+
+  for (const quantity of [true, '', [], {}]) {
+    const { status, body } = await postItem(baseUrl, {
+      name: 'Bad quantity type',
+      sku: `BAD-TYPE-${JSON.stringify(quantity)}`,
+      quantity,
+    });
+
+    assert.equal(status, 400, `expected 400 for quantity ${JSON.stringify(quantity)}`);
+    assert.equal(body.error, 'Quantity must be zero or greater.');
+  }
+});
+
 test('POST /api/inventory rejects a missing name', async (t) => {
   const baseUrl = await startServer(t);
 
@@ -174,6 +203,15 @@ test('POST /api/inventory rejects a non-numeric quantity', async (t) => {
 
   assert.equal(status, 400);
   assert.equal(body.error, 'Quantity must be zero or greater.');
+});
+
+test('unknown API paths return a JSON 404', async (t) => {
+  const baseUrl = await startServer(t);
+
+  const response = await fetch(`${baseUrl}/api/inventory/missing`);
+
+  assert.equal(response.status, 404);
+  assert.deepEqual(await response.json(), { error: 'Not found.' });
 });
 
 test('POST /api/inventory rejects duplicate SKUs regardless of case', async (t) => {

@@ -36,7 +36,7 @@ This repository holds two things:
 
 ### Local development
 
-Requires Node.js 20+.
+Requires Node.js 20.19+ or 22.12+, the range Vite 7 supports.
 
 ```bash
 npm install
@@ -78,16 +78,18 @@ The Dockerfile has two targets.
 ```bash
 # Development container with both dev servers (ports 5173 and 3001)
 docker build --target development -t verltrix-inventory:dev .
-docker run --rm -p 3000:5173 -p 3001:3001 -v "$PWD:/app" verltrix-inventory:dev
+docker run --rm -p 3000:5173 -p 3001:3001 \
+  -v "$PWD:/app" -v verltrix_inventory_node_modules:/app/node_modules \
+  verltrix-inventory:dev
 
 # Production image: Express serves the API and the built client on port 3000
 docker build --target production -t verltrix-inventory .
 docker run --rm -p 3000:3000 verltrix-inventory
 ```
 
-When using the development target with a bind mount, keep the container's
-`node_modules` from the image by not mounting over `/app/node_modules`
-(the sandbox configuration handles this with a named volume).
+The bind mount would otherwise hide the dependencies installed in the image, so
+the command above also mounts a named volume over `/app/node_modules` to keep
+them. Rebuild the image after changing dependencies.
 
 ### API
 

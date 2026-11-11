@@ -18,6 +18,12 @@ export function createApp() {
 
   app.use('/api/inventory', createInventoryRouter());
 
+  // Unknown API paths get a JSON 404 here, before the client fallback below
+  // could answer them with index.html and a 200.
+  app.use('/api', (_req, res) => {
+    res.status(404).json({ error: 'Not found.' });
+  });
+
   // In production the Express server also serves the built React client, so the
   // app runs from a single origin. During development Vite serves the client.
   const clientDist = path.join(__dirname, '../../client/dist');
